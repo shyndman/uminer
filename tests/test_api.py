@@ -375,6 +375,36 @@ def test_download_result_parses_zip_outputs(tmp_path: Path) -> None:
     assert full_md.local_path.exists()
 
 
+def test_download_result_swaps_atomically_and_clears_stale_output(
+    tmp_path: Path,
+) -> None:
+    zip_bytes = _result_zip_bytes()
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=zip_bytes)
+
+    output_dir = tmp_path / "result"
+    extract_dir = output_dir
+    extract_dir.mkdir(parents=True)
+    stale = extract_dir / "stale.md"
+    _ = stale.write_text("old run", encoding="utf-8")
+    leftover_staging = output_dir.with_name(output_dir.name + ".tmp")
+    leftover_staging.mkdir()
+    _ = (leftover_staging / "junk.txt").write_text("abandoned", encoding="utf-8")
+
+    client = MinerUClient(api_key="token", client=_mock_client(handler))
+    result = client.download_result(
+        "https://cdn.example/result.zip",
+        output_dir=output_dir,
+        extract_dir=extract_dir,
+    )
+
+    assert result.output_dir == output_dir
+    assert not stale.exists()
+    assert (extract_dir / "full.md").read_text(encoding="utf-8") == "# Smoke\n"
+    assert not leftover_staging.exists()
+
+
 def test_extract_url_job_reports_status_and_waits_for_result() -> None:
     requests: list[str] = []
     zip_bytes = _result_zip_bytes()

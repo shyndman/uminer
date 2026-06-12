@@ -17,6 +17,7 @@ from .types import Json
 CACHE_DIR_ENV = "XDG_CACHE_HOME"
 EXTRACTED_DIR_NAME = "extracted"
 LOCAL_OUTPUT_DIR_SUFFIX = ".uminer"
+STAGING_DIR_SUFFIX = ".tmp"
 
 
 class MinerUResultFile(BaseModel):
@@ -62,10 +63,16 @@ class MinerUParsedResult(BaseModel):
         cls, zip_path: Path, output_dir: Path, *, extract_dir: Path | None = None
     ) -> MinerUParsedResult:
         extracted_dir = extract_dir or output_dir / EXTRACTED_DIR_NAME
+        # Extract into a sibling staging dir, then atomically swap it into place
+        # so an interrupted extraction never leaves a partial result directory.
+        staging_dir = extracted_dir.with_name(extracted_dir.name + STAGING_DIR_SUFFIX)
+        if staging_dir.exists():
+            shutil.rmtree(staging_dir)
+        staging_dir.mkdir(parents=True, exist_ok=True)
+        _extract_zip(zip_path, staging_dir)
         if extracted_dir.exists():
             shutil.rmtree(extracted_dir)
-        extracted_dir.mkdir(parents=True, exist_ok=True)
-        _extract_zip(zip_path, extracted_dir)
+        os.replace(staging_dir, extracted_dir)
         files = tuple(
             MinerUResultFile(
                 path=path.relative_to(extracted_dir).as_posix(), local_path=path
