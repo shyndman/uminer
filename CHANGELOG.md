@@ -1,3 +1,10 @@
+## v0.2.1 (2026-06-12)
+
+### Fix
+
+- **results**: extract result zips atomically
+- **api**: extend upload write timeout to 120s
+
 ## v0.2.0 (2026-05-27)
 
 ### Feat

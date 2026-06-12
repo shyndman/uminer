@@ -1,6 +1,6 @@
 [project]
 name = "uminer"
-version = "0.2.0"
+version = "0.2.1"
 description = "Thin Python wrapper for MinerU's v4 extraction API"
 readme = "README.md"
 license = { file = "LICENSE" }
