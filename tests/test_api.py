@@ -9,6 +9,7 @@ from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
+from typing import cast
 from uuid import UUID
 
 import httpx
@@ -265,6 +266,25 @@ def test_create_upload_batch_and_upload_files(tmp_path: Path) -> None:
     assert batch.file_urls == ("https://uploads.example/demo.pdf",)
     assert [request.method for request in requests] == ["POST", "PUT"]
     assert progress_updates == [("demo.pdf", 9, 9)]
+
+
+def test_upload_file_extends_write_timeout(tmp_path: Path) -> None:
+    seen: list[dict[str, float | None]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(cast("dict[str, float | None]", request.extensions["timeout"]))
+        return httpx.Response(200)
+
+    path = tmp_path / "demo.pdf"
+    _ = path.write_bytes(b"pdf bytes")
+    client = MinerUClient(api_key="token", client=_mock_client(handler))
+    client.upload_file("https://uploads.example/demo.pdf", path)
+
+    assert len(seen) == 1
+    timeout = seen[0]
+    assert timeout["write"] == 120.0
+    assert timeout["connect"] == 5.0
+    assert timeout["read"] == 5.0
 
 
 def test_create_url_batch_returns_batch_id() -> None:

@@ -35,6 +35,7 @@ type UploadProgressCallback = Callable[[Path, int, int], None]
 type BatchUploadProgressCallback = Callable[[int, Path, int, int], None]
 
 UPLOAD_CHUNK_SIZE = 64 * 1024
+UPLOAD_WRITE_TIMEOUT_SECONDS = 120.0
 DEFAULT_BATCH_UPLOAD_WORKERS = 4
 
 
@@ -388,15 +389,25 @@ class MinerUClient:
         on_progress: UploadProgressCallback | None = None,
     ) -> None:
         path_obj = Path(path)
+        base_timeout = self._client.timeout
+        upload_timeout = httpx.Timeout(
+            connect=base_timeout.connect,
+            read=base_timeout.read,
+            write=UPLOAD_WRITE_TIMEOUT_SECONDS,
+            pool=base_timeout.pool,
+        )
         if on_progress is None:
             with path_obj.open("rb") as file:
-                response = self._client.put(upload_url, content=file)
+                response = self._client.put(
+                    upload_url, content=file, timeout=upload_timeout
+                )
         else:
             total_bytes = path_obj.stat().st_size
             response = self._client.put(
                 upload_url,
                 content=_ProgressByteStream(path_obj, total_bytes, on_progress),
                 headers={"Content-Length": str(total_bytes)},
+                timeout=upload_timeout,
             )
         _ = response.raise_for_status()
 
